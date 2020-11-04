@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+    <script>
+        $(document).ready(function(){
+            $("tr").click(function(){
+                var id = $(this).attr("word-id")
+                var tr = this
+                $.ajax({
+                    method: "PATCH",
+                    url: "/unwant_words/" + id,
+                }).done(function( msg ) {
+                    if(msg === "removed"){
+                        $(tr).css("background-color","white");
+                    } else {
+                        $(tr).css("background-color","gray");
+                    }
+                });
+            });
+        });
+    </script>
+</head>
+<body>
+    <table border="1 solid">
+        {{ range .Words }}
+            {{if .Unwant}}
+            <tr word-id="{{ .Id }}" style="background-color: gray;">
+            {{ else }}
+            <tr word-id="{{ .Id }}">
+            {{ end }}
+                <td>{{ .Word }}</td>
+                <td>{{ .Bopomofo }}</td>
+                <td>{{ .Meaning }}</td>
+            </tr>
+        {{ end }}
+    </table>
+</body>
+</html>
