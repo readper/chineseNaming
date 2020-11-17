@@ -12,20 +12,33 @@
                     url: "/unwant_words/" + id,
                 }).done(function( msg ) {
                     if(msg === "removed"){
-                        $(tr).css("background-color","white");
+                        $(tr).removeClass("removed")
                     } else {
-                        $(tr).css("background-color","gray");
+                        $(tr).addClass("removed")
                     }
                 });
             });
+            $(".top_btn").click(function(){
+                if($("tr:first").hasClass("h")){
+                    $("tr").removeClass("h");
+                } else {
+                    $("tr").addClass("h");
+                }
+            })
         });
     </script>
+    <style type="text/css">
+        .removed { background-color: gray }
+        .h.removed { display: none }
+        .top_btn {position: sticky; top:10px;left:10px;}
+    </style>
 </head>
 <body>
+    <button class="top_btn">隱藏/取消隱藏</button>
     <table border="1 solid">
         {{ range .Words }}
             {{if .Unwant}}
-            <tr word-id="{{ .Id }}" style="background-color: gray;">
+            <tr word-id="{{ .Id }}" class="removed">
             {{ else }}
             <tr word-id="{{ .Id }}">
             {{ end }}
