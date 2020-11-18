@@ -13,7 +13,7 @@
                 }).done(function( msg ) {
                     if(msg === "removed"){
                         $(tr).removeClass("removed")
-                    } else {
+                    } else if(msg === "created") {
                         $(tr).addClass("removed")
                     }
                 });
