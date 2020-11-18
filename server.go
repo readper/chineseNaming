@@ -13,6 +13,7 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/labstack/echo/v4"
 	"xorm.io/xorm"
+	"xorm.io/builder"
 
 	"github.com/readper/naming-server/models"
 )
@@ -26,7 +27,7 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Con
 }
 
 func main() {
-	engine, err := xorm.NewEngine("mysql", "root:@tcp(127.0.0.1:3306)/?charset=utf8")
+	engine, err := xorm.NewEngine("mysql", "media17:media17@tcp(localhost:3306)/?charset=utf8mb4")
 	if err != nil {
 		panic(err)
 	}
@@ -44,6 +45,9 @@ func main() {
 			panic(err)
 		}
 		if err := engine.Sync2(new(models.UnwantWord)); err != nil {
+			panic(err)
+		}
+		if err := engine.Sync2(new(models.Order)); err != nil {
 			panic(err)
 		}
 		fmt.Println("prepare data")
@@ -106,6 +110,63 @@ func main() {
 	e.Renderer = t
 	e.GET("/", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Hello, World!")
+	})
+	e.GET("/names", func(c echo.Context) error {
+		orders := make([]models.Order, 0)
+		if _, err := engine.Exec("use naming;"); err != nil {
+			panic(err)
+		}
+		if err := engine.Where("naming_id = 1").Find(&orders); err != nil {
+			return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
+		}
+		output:=""
+		orderWords := map[int64][]models.Word{}
+		minOrder:=int64(999)
+		maxOrder:=int64(0)
+		for _, order := range orders{
+			if order.Order > maxOrder {
+				maxOrder = order.Order
+			}
+			if order.Order < minOrder {
+				minOrder = order.Order
+			}
+			unwants := make([]models.UnwantWord,0)
+			if err := engine.Where("naming_id = 1").Find(&unwants); err != nil {
+				return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
+			}
+			unwantsWordIDs := make([]int64,0)
+			for _, unwant := range unwants{
+				unwantsWordIDs = append(unwantsWordIDs, unwant.WordId)
+			}
+			fmt.Println(len(unwantsWordIDs))
+			words := make([]models.Word, 0)
+			if _, err := engine.Exec("use naming;"); err != nil {
+				panic(err)
+			}
+			if err := engine.Where(builder.And(builder.Eq{"stroke_count":order.StrokeCount},builder.NotIn("word_id",unwantsWordIDs))).Find(&words); err != nil {
+				return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
+			}
+			for _,word:= range words{
+				orderWords[order.Order] = append(orderWords[order.Order], word)
+			}
+		}
+		names := make([]string,0)
+		for _, word:= range orderWords[minOrder]{
+			names = append(names, word.Word)
+		}
+		for i:=minOrder+1;i<=maxOrder;i++{
+			newNames := make([]string,0)
+			for _, name := range names{
+				for _, word := range orderWords[i] {
+					newNames = append(newNames, name+word.Word)
+				}
+			}
+			names = newNames
+		}
+		for _,name:= range names{
+			output = output+"\n"+name
+		}
+		return c.String(http.StatusOK, output)
 	})
 	e.GET("/words", func(c echo.Context) error {
 		strokeCount := c.QueryParam("StrokeCount")
