@@ -16,6 +16,11 @@ type UnwantWord struct {
     StrokeCount int64 `xorm:"bigint(20) notnull index(pk)"`
 }
 
+type UnwantName struct {
+    NamingId int64 `xorm:"bigint(20) notnull index(pk)"`
+    NameId string `xorm:"varchar(30) notnull index(pk)"`
+}
+
 type Word struct {
     Id int64
     Word string `xorm:"varchar(4) notnull"`
