@@ -19,27 +19,31 @@
                 });
             });
             $(".top_btn").click(function(){
-                if($("tr:first").hasClass("h")){
-                    $("tr").removeClass("h");
+                if($("table").hasClass("h")){
+                    $("table").removeClass("h");
                 } else {
-                    $("tr").addClass("h");
+                    $("table").addClass("h");
                 }
             })
         });
     </script>
     <style type="text/css">
         .removed { background-color: gray }
-        .h.removed { display: none }
+        .h .removed { display: none }
         .top_btn {position: sticky; top:10px;left:10px;}
     </style>
 </head>
 <body>
     <button class="top_btn">隱藏/取消隱藏</button>
     <table border="1 solid">
-        {{ range $key, $value := .Names }}
-            <tr name-id="{{ $key }}">
-                <td>{{ range $value }}{{ .Word }}{{ end }}</td>
-                <td>{{ range $value }}{{ .Bopomofo }}<br>{{ end }}</td>
+        {{ range .Names }}
+            {{ if .Unwant }}
+            <tr name-id="{{ .Id }}" class="removed">
+            {{ else }}
+            <tr name-id="{{ .Id }}">
+            {{ end }}
+                <td>{{ range .Words }}{{ .Word }}{{ end }}</td>
+                <td>{{ range .Words }}{{ .Bopomofo }}<br>{{ end }}</td>
             </tr>
         {{ end }}
     </table>

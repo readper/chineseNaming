@@ -27,8 +27,8 @@ func (t *Template) Render(w io.Writer, name string, data interface{}, c echo.Con
 }
 
 func main() {
-	//engine, err := xorm.NewEngine("mysql", "root:@tcp(localhost:3306)/?charset=utf8mb4")
-	engine, err := xorm.NewEngine("mysql", "media17:media17@tcp(localhost:3306)/?charset=utf8mb4")
+	engine, err := xorm.NewEngine("mysql", "root:@tcp(localhost:3306)/?charset=utf8mb4")
+	// engine, err := xorm.NewEngine("mysql", "media17:media17@tcp(localhost:3306)/?charset=utf8mb4")
 	if err != nil {
 		panic(err)
 	}
@@ -106,9 +106,6 @@ func main() {
 	if _, err := engine.Exec("use naming;"); err != nil {
 		panic(err)
 	}
-	//if err := engine.Sync2(new(models.UnwantName)); err != nil {
-	//	panic(err)
-	//}
 	e := echo.New()
 	t := &Template{
 		templates: template.Must(template.ParseGlob("views/*.html")),
@@ -128,6 +125,14 @@ func main() {
 		orderWords := map[int64][]models.Word{}
 		minOrder := int64(999)
 		maxOrder := int64(0)
+		unwants := make([]models.UnwantWord, 0)
+		if err := engine.Where("naming_id = 1").Find(&unwants); err != nil {
+			return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
+		}
+		unwantsWordIDs := make([]int64, 0)
+		for _, unwant := range unwants {
+			unwantsWordIDs = append(unwantsWordIDs, unwant.WordId)
+		}
 		for _, order := range orders {
 			if order.Order > maxOrder {
 				maxOrder = order.Order
@@ -135,18 +140,8 @@ func main() {
 			if order.Order < minOrder {
 				minOrder = order.Order
 			}
-			unwants := make([]models.UnwantWord, 0)
-			if err := engine.Where("naming_id = 1").Find(&unwants); err != nil {
-				return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
-			}
-			unwantsWordIDs := make([]int64, 0)
-			for _, unwant := range unwants {
-				unwantsWordIDs = append(unwantsWordIDs, unwant.WordId)
-			}
+
 			words := make([]models.Word, 0)
-			if _, err := engine.Exec("use naming;"); err != nil {
-				panic(err)
-			}
 			if err := engine.Where(builder.And(builder.Eq{"stroke_count": order.StrokeCount}, builder.NotIn("id", unwantsWordIDs))).Find(&words); err != nil {
 				return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
 			}
@@ -154,28 +149,39 @@ func main() {
 				orderWords[order.Order] = append(orderWords[order.Order], word)
 			}
 		}
-		names := make([][]models.Word, 0)
+		nameWords := make([][]models.Word, 0)
 		for _, word := range orderWords[minOrder] {
-			names = append(names, []models.Word{word})
+			nameWords = append(nameWords, []models.Word{word})
 		}
 		for i := minOrder + 1; i <= maxOrder; i++ {
 			newNames := make([][]models.Word, 0)
-			for _, name := range names {
+			for _, name := range nameWords {
 				for _, word := range orderWords[i] {
 					newName := append(name, word)
 					newNames = append(newNames, newName)
 				}
 			}
-			names = newNames
+			nameWords = newNames
 		}
 		// change to map for check unwant
-		mapNames := make(map[string][]models.Word,0)
-		for _, name := range names{
+		mapNames := make(map[string]models.Name, 0)
+		for _, nameWord := range nameWords {
 			wordIDs := []string{}
-			for _, word :=range name{
-				wordIDs = append(wordIDs, fmt.Sprintf("%d",word.Id))
+			for _, word := range nameWord {
+				wordIDs = append(wordIDs, fmt.Sprintf("%d", word.Id))
 			}
-			mapNames[strings.Join(wordIDs,"_")] = name
+			mapNames[strings.Join(wordIDs, "_")] = models.Name{
+				Words: nameWord,
+				Id:    strings.Join(wordIDs, "_"),
+			}
+		}
+		// get unwant names
+		unwantNames := make([]models.UnwantName, 0)
+		if err := engine.Where("naming_id = 1").Find(&unwantNames); err != nil {
+			return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
+		}
+		for _, unwantName := range unwantNames {
+			mapNames[unwantName.NameId].Unwant = true
 		}
 		err = c.Render(http.StatusOK, "names.html", map[string]interface{}{"Names": mapNames})
 		if err != nil {
@@ -227,14 +233,18 @@ func main() {
 				NameId:   nameID,
 			}
 			if _, err := engine.Insert(unwant); err != nil {
+				fmt.Printf("name remove failed, %s\n", nameID)
 				return c.String(http.StatusInternalServerError, "insert failed!\n"+err.Error())
 			}
+			fmt.Printf("name removed, %s\n", nameID)
 			return c.String(http.StatusOK, "created")
 		}
 		unwant := models.UnwantName{}
 		if _, err := engine.Where("name_id = ? and naming_id = 1", nameID).Delete(&unwant); err != nil {
+			fmt.Printf("name add back failed, %s\n", nameID)
 			return c.String(http.StatusInternalServerError, "Delete failed!\n"+err.Error())
 		}
+		fmt.Printf("name add back, %s\n", nameID)
 		return c.String(http.StatusOK, "removed")
 	})
 	e.PATCH("/unwant_words/:id", func(c echo.Context) error {
