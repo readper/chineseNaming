@@ -163,6 +163,15 @@ func main() {
 			}
 			nameWords = newNames
 		}
+		unwantNames := make([]models.UnwantName, 0)
+		unwantNameMap := map[string]struct{}{}
+		if err := engine.Where("naming_id = 1").Find(&unwantNames); err != nil {
+			return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
+		}
+		// get unwant names
+		for _, unwantName := range unwantNames {
+			unwantNameMap[unwantName.NameId] = struct{}{}
+		}
 		// change to map for check unwant
 		mapNames := make(map[string]models.Name, 0)
 		for _, nameWord := range nameWords {
@@ -170,19 +179,18 @@ func main() {
 			for _, word := range nameWord {
 				wordIDs = append(wordIDs, fmt.Sprintf("%d", word.Id))
 			}
-			mapNames[strings.Join(wordIDs, "_")] = models.Name{
+			id:=strings.Join(wordIDs, "_")
+			unwant := false
+			if _,ok := unwantNameMap[id];ok{
+				unwant=true
+			}
+			mapNames[id] = models.Name{
 				Words: nameWord,
-				Id:    strings.Join(wordIDs, "_"),
+				Id:    id,
+				Unwant: unwant,
 			}
 		}
-		// get unwant names
-		unwantNames := make([]models.UnwantName, 0)
-		if err := engine.Where("naming_id = 1").Find(&unwantNames); err != nil {
-			return c.String(http.StatusInternalServerError, "Find failed!\n"+err.Error())
-		}
-		for _, unwantName := range unwantNames {
-			mapNames[unwantName.NameId].Unwant = true
-		}
+
 		err = c.Render(http.StatusOK, "names.html", map[string]interface{}{"Names": mapNames})
 		if err != nil {
 			fmt.Println(err)
